@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-analyze-scan:
-    name: Build
+    name: Build, Analyze, and Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -44,6 +44,27 @@ jobs:
       # Step 5: Build and Push Docker Image
       - name: Build and Push Docker image
         run: |
-          docker build --build-arg TMDB_V3_API_KEY=4d303e6a3bbd3c5a1ac7a07cbbb0f185 -t netflix .
+          docker build --build-arg TMDB_V3_API_KEY=${{ secrets.TMDB_V3_API_KEY }} -t netflix .
           docker tag netflix siva3103/netflix:latest
           docker push siva3103/netflix:latest
+
+  deploy:
+    name: Deploy and Scan Image
+    needs: build-analyze-scan
+    runs-on: [aws-netflix]   # <-- must match your self-hosted runner label
+
+    steps:
+      # Step 6.1: Pull Docker image
+      - name: Pull the Docker image
+        run: docker pull siva3103/netflix:latest
+
+      # Step 6.2: Scan image with Trivy
+      - name: Trivy image scan
+        run: trivy image siva3103/netflix:latest
+
+      # Step 6.3: Run container
+      - name: Run the Netflix container
+        run: |
+          docker stop netflix || true
+          docker rm netflix || true
+          docker run -d --name netflix -p 8081:80 siva3103/netflix:latest
