@@ -1,37 +1,49 @@
-name: Build,Analyze,scan
+name: Build, Analyze, and Scan
+
 on:
   push:
     branches:
       - main
+
 jobs:
   build-analyze-scan:
     name: Build
     runs-on: ubuntu-latest
+
     steps:
+      # Step 1: Checkout code
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
+
+      # Step 2: SonarQube Analysis
       - name: Build and analyze with SonarQube
         uses: sonarsource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      - name: install trivy
+
+      # Step 3: Install Trivy
+      - name: Install Trivy
         run: |
-          #install trivy
           sudo apt-get install wget apt-transport-https gnupg lsb-release -y
           wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
           sudo apt-get update
           sudo apt-get install trivy -y
-          #command to scan files
           trivy fs .
-      - name: Docker build and push
-        run: 
+
+      # Step 4: Log in to Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Step 5: Build and Push Docker Image
+      - name: Build and Push Docker image
+        run: |
           docker build --build-arg TMDB_V3_API_KEY=4d303e6a3bbd3c5a1ac7a07cbbb0f185 -t netflix .
           docker tag netflix siva3103/netflix:latest
-          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           docker push siva3103/netflix:latest
-        env:
-            DOCKER_CLI_ACI: 1
